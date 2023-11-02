@@ -1,0 +1,85 @@
+.snapYear {
+    font-size: 12px;
+    position: absolute;
+    bottom: 30px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    line-height: .9rem;
+    margin-bottom: 10px;
+}
+.paidthru {
+    font-size: 12px;
+    position: absolute;
+    bottom: 110px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    line-height: .9rem;
+    margin-bottom: 10px;
+}
+.incurredfrom {
+    font-size: 12px;
+    position: absolute;
+    bottom: 70px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    line-height: .9rem;
+    margin-bottom: 10px;
+}
+.mprisy{
+    font-size: 12px;
+    position: absolute;
+    bottom: 10px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+#mobileMenuIcon {
+    height: 35px;
+    min-width: 42px;
+    display: none;
+
+}
+
+@media (max-width:991px) {
+    #mobileMenuIcon {
+        display: inline-flex;
+        justify-content: flex-start;
+    }
+
+    .parent {
+        display: flex;
+        flex-direction: column;
+        align-content: flex-start;
+    }
+
+    .mobileview {
+        position: absolute;
+        height: 100vh;
+        top: 205px;
+        z-index: 1500;
+    }
+}
+
+@media (max-width:761px) {
+    #mobileMenuIcon {
+        display: inline-flex;
+        justify-content: flex-start;
+    }
+
+    .mobileview {
+        position: absolute;
+        height: 100vh;
+        top: 190px;
+        z-index: 1500;
+    }
+
+    .parent {
+        display: flex;
+        flex-direction: column;
+        align-content: flex-start;
+    }
+}

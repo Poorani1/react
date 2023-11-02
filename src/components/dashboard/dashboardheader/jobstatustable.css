@@ -1,0 +1,54 @@
+    .cellWrapper {
+      display: flex;
+      align-items: center;
+    }
+
+    .status {
+      padding: 5px;
+      border-radius: 5px;
+    }
+
+    .jobstatusHeader {
+      font-weight: bold;
+      font-size: 8px;
+      color: rgb(160, 160, 160);
+    }
+
+    .jobstatusCell {
+      font-size: 40px;
+      font-weight: bold;
+    }
+
+    .tableContentInner {
+      margin-top: 0px;
+      border-top: 0px solid black;
+    }
+
+    .jobstatusStatus {
+      font-size: 11px;
+      font-weight: normal;
+      color: green;
+    }
+
+    .inProgressStyle {
+      color: #815e90;
+    }
+
+    .completeStyle {
+      color: #5D9674;
+    }
+
+    .tableViewResults {
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .rowHeaderStyle {
+      font-size: 10px;
+      color: #c6c6c6;
+    }
+
+    .rowHeaderValueStyle {
+      font-size: 12px;
+      margin-top: 5px;
+    }
