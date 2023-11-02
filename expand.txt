@@ -1,0 +1,1037 @@
+import * as React from "react";
+import {
+    useRef,
+    useLayoutEffect,
+    useCallback
+} from "react";
+import PropTypes from "prop-types";
+import Box from "@mui/material/Box";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TableSortLabel from "@mui/material/TableSortLabel";
+import Paper from "@mui/material/Paper";
+import IconButton from "@mui/material/IconButton";
+import "./ExtendedTable.css";
+import { useSelector } from "react-redux";
+import Spinner from "../../Overview/spinner";
+
+function descendingComparator(a, b, orderBy) {
+    if (b[orderBy] < a[orderBy]) {
+        return -1;
+    }
+    if (b[orderBy] > a[orderBy]) {
+        return 1;
+    }
+    return 0;
+}
+
+function getComparator(order, orderBy) {
+    return order === "desc"
+        ? (a, b) => descendingComparator(a, b, orderBy)
+        : (a, b) => -descendingComparator(a, b, orderBy);
+}
+
+function stableSort(array, comparator) {
+    const stabilizedThis = array.map((el, index) => [el, index]);
+    stabilizedThis.sort((a, b) => {
+        const order = comparator(a[0], b[0]);
+        if (order !== 0) {
+            return order;
+        }
+        return a[1] - b[1];
+    });
+    return stabilizedThis.map((el) => el[0]);
+}
+
+function EnhancedTableHead(props) {
+    const { order, orderBy, onRequestSort, headCells, col, col1, col2, col3 } = props;
+    const createSortHandler = (property) => (event) => {
+        onRequestSort(event, property);
+    };
+
+    return (
+        <TableHead style={{ backgroundColor: "#fff" }}>
+            <TableRow style={{ zIndex: 0 }}>
+                <TableCell style={{ position: "sticky", left: 0, zIndex: 3 }}></TableCell>
+                <TableCell style={{ position: "sticky", left: 0, zIndex: 3 }}></TableCell>
+                <TableCell style={{ position: "sticky", left: 0, zIndex: 3 }}></TableCell>
+                {
+                    col && <>
+                        <TableCell align="center" sx={{ borderBottom: "1px solid gray" }} colSpan={4}>
+                            {col}
+                        </TableCell>
+                        <TableCell></TableCell>
+                    </>
+                }
+                <TableCell align="center" sx={{ borderBottom: "1px solid gray" }} colSpan={4}>
+                    {col1}
+                </TableCell>
+                <TableCell></TableCell>
+                <TableCell align="center" sx={{ borderBottom: "1px solid gray" }} colSpan={4}>
+                    {col2}
+                </TableCell>
+                <TableCell></TableCell>
+                <TableCell align="center" sx={{ borderBottom: "1px solid gray" }} colSpan={4}>
+                    {col3}
+                </TableCell>
+            </TableRow>
+            <TableRow>
+                {headCells.map((headCell, index) => (
+                    <TableCell
+                        id={headCell.id}
+                        key={headCell.id + index}
+                        align={headCell.numeric ? "right" : "left"}
+                        padding={headCell.disablePadding ? "none" : "normal"}
+                        sortDirection={orderBy === headCell.id ? false : false}
+                        style={{
+                            width: headCell.width,
+                            padding: headCell.id === "" && "5px",
+                            paddingLeft: headCell.id === "inNet" && "10px",
+                            position: "sticky",
+                            left: (headCell.id === "name" ? "36px" : 0),
+                            zIndex: (headCell.id === "name" ? 3 : 2)
+                        }}
+                    >
+                        {headCell.id === "name" ||
+                            headCell.id === "inNetwork" ||
+                            headCell.id === "" ||
+                            headCell.id === "extraLabel" ? (
+                            <>{headCell.label} </>
+                        ) : (
+                            <TableSortLabel
+                                active={orderBy === headCell.id && orderBy !== "name"}
+                                direction={orderBy === headCell.id ? order : "desc"}
+                                onClick={createSortHandler(headCell.id)}
+                            >
+                                {headCell.label}
+                            </TableSortLabel>
+                        )}
+                    </TableCell>
+                ))}
+            </TableRow>
+        </TableHead>
+    );
+}
+
+EnhancedTableHead.propTypes = {
+    numSelected: PropTypes.number.isRequired,
+    onRequestSort: PropTypes.func.isRequired,
+    order: PropTypes.oneOf(["asc", "desc"]).isRequired,
+    orderBy: PropTypes.string.isRequired,
+    rowCount: PropTypes.number.isRequired
+};
+const ExpandableTableRow = ({
+    children,
+    expandComponent,
+    rowExpand,
+    isExpanded,
+    order,
+    orderBy,
+    parentRowName,
+    onSetIsExpanded,
+    apiCallExpand,
+    ...otherProps
+}) => {
+    const [isExpandedChild, setIsExpandedChild] = React.useState(false);
+    const onSetIsExpandedChild = () => {
+        console.log('isexpland!!!, child',isExpanded , isExpandedChild)
+        // setIsExpandedChild(!isExpanded);
+        setIsExpandedChild(!isExpandedChild);
+        onSetIsExpanded(!isExpandedChild);
+        if(!isExpandedChild){
+        apiCallExpand(parentRowName, (order === "asc"), orderBy);
+        }
+    };
+    return (
+        <>
+            <TableRow {...otherProps}>
+                <TableCell style={{ position: "sticky", left: 0, backgroundColor: "white" }} className="expandIcon">
+                    <IconButton onClick={() => onSetIsExpandedChild()}>
+                        {rowExpand && (isExpandedChild ? "-" : "+")}
+                        {/* {rowExpand && (isExpanded ? "-" : "+")} */}
+                    </IconButton>
+                </TableCell>
+                {children}
+            </TableRow>
+            {isExpandedChild && (
+                <>
+                    {expandComponent}
+                </>
+            )}
+        </>
+    );
+};
+
+export default function PcpTable({
+    headCells,
+    rows,
+    childRows,
+    apiCall,
+    apiCallSorting,
+    apiCallExpand,
+    rowsPerPage,
+    loading,
+    inNetwork,
+    utilizationSymbol,
+    unitcostSymbolPercentage,
+    unitcostSymbolDollar,
+    col, col1, col2, col3
+}) {
+    const lob = useSelector((state) => state.executiveDashboardReducer.lob);
+
+    const [order, setOrder] = React.useState("desc");
+    const [orderBy, setOrderBy] = React.useState("pmpmChange");
+    const [selected, setSelected] = React.useState([]);
+    const [page, setPage] = React.useState(0);
+    const [dense, setDense] = React.useState(false);
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const tableEl = useRef();
+    const [distanceBottom, setDistanceBottom] = React.useState(0);
+    const [hasMore] = React.useState(true);
+
+    React.useEffect(() => {
+        setOrder("desc");
+        setOrderBy("pmpmChange");
+    }, [lob]);
+
+    const onSetIsExpanded = (value) => {
+        console.log('value!!',value)
+        setIsExpanded(value);
+    };
+
+    const handleRequestSort = (event, property) => {
+        let isAsc = false;
+        if (orderBy === property) {
+            isAsc = !(order === "asc");
+        }
+        setOrder(isAsc ? "asc" : "desc");
+        setOrderBy(property);
+        apiCallSorting(isAsc, property);
+    };
+
+    const handleClick = (event, name) => {
+        const selectedIndex = selected.indexOf(name);
+        let newSelected = [];
+
+        if (selectedIndex === -1) {
+            newSelected = newSelected.concat(selected, name);
+        } else if (selectedIndex === 0) {
+            newSelected = newSelected.concat(selected.slice(1));
+        } else if (selectedIndex === selected?.length - 1) {
+            newSelected = newSelected.concat(selected.slice(0, -1));
+        } else if (selectedIndex > 0) {
+            newSelected = newSelected.concat(
+                selected.slice(0, selectedIndex),
+                selected.slice(selectedIndex + 1)
+            );
+        }
+
+        setSelected(newSelected);
+    };
+
+    const isSelected = (name) => selected.indexOf(name) !== -1;
+
+    // Avoid a layout jump when reaching the last page with empty rows.
+    const emptyRows =
+        page > 0 ? Math.max(0, (1 + page) * rowsPerPage - rows?.length) : 0;
+
+    const loadMore = useCallback(() => {
+        setPage(0);
+    }, [rowsPerPage]);
+
+    const scrollListener = useCallback(() => {
+        let bottom = tableEl.current.scrollHeight - tableEl.current.clientHeight;
+        // if you want to change distanceBottom every time new data is loaded
+        // don't use the if statement
+        if (!distanceBottom) {
+            // calculate distanceBottom that works for you
+            setDistanceBottom(Math.round((bottom / 100) * 20));
+        }
+        if (
+            tableEl.current.scrollTop > bottom - distanceBottom &&
+            hasMore
+            &&
+            !loading
+        ) {
+            loadMore();
+            apiCall((order === "asc"), orderBy);
+        }
+    }, [hasMore, loadMore, loading, distanceBottom]);
+
+
+    useLayoutEffect(() => {
+        const tableRef = tableEl.current;
+        tableRef.addEventListener("scroll", scrollListener);
+        return () => {
+            tableRef.removeEventListener("scroll", scrollListener);
+        };
+    }, [scrollListener]);
+
+    const setBackground = (rowss, isAsc, count) => {
+        let len = rowss?.length + 1;
+        let opacity = (1 / len).toFixed(2) - 0;
+        let ops = 0;
+        if (isAsc) {
+            ops = opacity * count++;
+        } else {
+            ops = opacity * (len - count);
+        }
+        let _opacity = Math.round(Math.min(Math.max(ops || 1, 0), 1) * 255)
+            .toString(16)
+            .toUpperCase();
+        if (_opacity.length === 1) _opacity = "0" + _opacity;
+        const hexColor = "#e1edff" + _opacity;
+        return hexColor;
+    };
+
+    const makeComma = (data, decimal) => {
+        let returnData = Number(data);
+        if (Number.isInteger(returnData) && decimal === '') {
+            returnData = returnData.toString();
+            returnData = returnData.split(/(?=(?:...)*$)/);
+            returnData = returnData.join(",");
+        } else {
+            if (decimal === 1) {
+                returnData = returnData.toFixed(1).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            } else {
+                returnData = returnData.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+        }
+        return returnData;
+    };
+    return (
+        <Box sx={{ width: "100%" }}>
+            <Paper sx={{ width: "100%", mb: 2 }}>
+                <TableContainer className="extendedTable" ref={tableEl}>
+                    <Table stickyHeader
+                        sx={{ minWidth: 750 }}
+                        aria-labelledby="tableTitle"
+                        size={dense ? "small" : "medium"}
+                    >
+                        <EnhancedTableHead
+                            numSelected={selected?.length}
+                            order={order}
+                            orderBy={orderBy}
+                            onRequestSort={handleRequestSort}
+                            rowCount={rows?.length}
+                            headCells={headCells}
+                            col={col}
+                            col1={col1}
+                            col2={col2}
+                            col3={col3}
+                        />
+
+                        <TableBody>
+                            {(rows && rows.length > 0) &&
+                                <>
+                                    {rows?.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                                        .map((row, index) => {
+                                            const isItemSelected = isSelected(row.name);
+                                            const labelId = `enhanced-table-checkbox-${index}`;
+                                            const labelKey = `enhanced-tr-${index}`;
+                                            return (
+                                                <ExpandableTableRow
+                                                    key={labelKey}
+                                                    rowExpand={row?.records > 0 ? true : false}
+                                                    isExpanded={isExpanded}
+                                                    onSetIsExpanded={onSetIsExpanded}
+                                                    apiCallExpand={apiCallExpand}
+                                                    parentRowName={row.name}
+                                                    order={order}
+                                                    orderBy={orderBy}
+                                                    expandComponent={
+                                                        // row?.details && (
+                                                        (childRows?.length > 0) && (
+                                                            <>
+                                                                {/* {stableSort(
+                                  row?.details,
+                                  getComparator(order, orderBy)
+                                ).map((rowss, i) => ( */}
+                                                                {childRows.map((rowss, i) => (
+                                                                    <TableRow key={i}>
+                                                                        <TableCell style={{ position: "sticky", left: 0, backgroundColor: "white" }}
+                                                                            className="expandIcon"
+                                                                        >
+                                                                            <IconButton></IconButton>
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            component="th"
+                                                                            id={labelId}
+                                                                            scope="row"
+                                                                            padding="none"
+                                                                            className="name"
+                                                                            style={{
+                                                                                paddingLeft: "10px",
+                                                                                position: "sticky",
+                                                                                left: "36px",
+                                                                                backgroundColor: "white"
+                                                                            }}
+                                                                        >
+                                                                            {rowss.name}
+                                                                        </TableCell>
+                                                                        <TableCell align="right">
+                                                                            {(inNetwork && rowss.inNet) && (
+                                                                                <div
+                                                                                    className={
+                                                                                        (rowss.inNet === "0.00" || rowss.inNet === "0")
+                                                                                            ? "inNetworkNotActive"
+                                                                                            : "inNetworkActive"
+                                                                                    }
+                                                                                >
+                                                                                    {rowss.inNet}%
+                                                                                </div>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        {col &&
+                                                                            <>
+                                                                                <TableCell
+                                                                                    align="right"
+                                                                                    style={{
+                                                                                        backgroundColor:
+                                                                                            orderBy === "mbrPrior"
+                                                                                                ? setBackground(
+                                                                                                    childRows,
+                                                                                                    order === "asc",
+                                                                                                    i + 1
+                                                                                                )
+                                                                                                : "#fff"
+                                                                                    }}
+                                                                                >
+                                                                                    {(rowss.mbrPrior !== "0") &&
+                                                                                        <>
+                                                                                            {makeComma(rowss.mbrPrior, '')}
+                                                                                        </>
+                                                                                    }
+                                                                                </TableCell>
+                                                                                <TableCell
+                                                                                    align="right"
+                                                                                    style={{
+                                                                                        backgroundColor:
+                                                                                            orderBy === "mbrCurrent"
+                                                                                                ? setBackground(
+                                                                                                    childRows,
+                                                                                                    order === "asc",
+                                                                                                    i + 1
+                                                                                                )
+                                                                                                : "#fff"
+                                                                                    }}
+                                                                                >
+                                                                                    {(rowss.mbrCurrent !== "0") &&
+                                                                                        <>
+                                                                                            {makeComma(rowss.mbrCurrent, '')}
+                                                                                        </>
+                                                                                    }
+                                                                                </TableCell>
+                                                                                <TableCell
+                                                                                    align="right"
+                                                                                    style={{
+                                                                                        backgroundColor:
+                                                                                            orderBy === "mbrVar"
+                                                                                                ? setBackground(
+                                                                                                    childRows,
+                                                                                                    order === "asc",
+                                                                                                    i + 1
+                                                                                                )
+                                                                                                : "#fff"
+                                                                                    }}
+                                                                                >
+                                                                                    {(rowss.mbrVar !== "0") &&
+                                                                                        <>
+                                                                                            {makeComma(rowss.mbrVar, '')}
+                                                                                        </>
+                                                                                    }
+                                                                                </TableCell>
+                                                                                <TableCell
+                                                                                    align="right"
+                                                                                    style={{
+                                                                                        backgroundColor:
+                                                                                            orderBy === "mbrChange"
+                                                                                                ? setBackground(
+                                                                                                    childRows,
+                                                                                                    order === "asc",
+                                                                                                    i + 1
+                                                                                                )
+                                                                                                : "#fff"
+                                                                                    }}
+                                                                                >
+                                                                                    {(rowss.mbrChange !== "0") &&
+                                                                                        <>
+                                                                                            {rowss.mbrChange}%
+                                                                                        </>
+                                                                                    }
+                                                                                </TableCell>
+                                                                                <TableCell align="right"></TableCell>
+                                                                            </>}
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "pmpmPrior"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.pmpmPrior !== "0") &&
+                                                                                <>
+                                                                                    ${makeComma(rowss.pmpmPrior, 2)}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "pmpmCurrent"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.pmpmCurrent !== "0") &&
+                                                                                <>
+                                                                                    ${makeComma(rowss.pmpmCurrent, 2)}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "pmpmVar"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.pmpmVar !== "0") &&
+                                                                                <>
+                                                                                    ${makeComma(rowss.pmpmVar, 2)}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "pmpmChange"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.pmpmChange !== "0") &&
+                                                                                <>
+                                                                                    {rowss.pmpmChange}%
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell align="right"></TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "utilizationPrior"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.utilizationPrior !== "0") &&
+                                                                                <>
+                                                                                    {utilizationSymbol}
+                                                                                    {utilizationSymbol === '$' ? makeComma(row.utilizationPrior, 2) : makeComma(row.utilizationPrior, 1)}
+                                                                                </>
+                                                                            }
+
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "utilizationCurrent"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.utilizationCurrent !== "0") &&
+                                                                                <>
+                                                                                    {utilizationSymbol}
+                                                                                    {utilizationSymbol === '$' ? makeComma(row.utilizationCurrent, 2) : makeComma(row.utilizationCurrent, 1)}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "utilizationVar"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.utilizationVar !== "0") &&
+                                                                                <>
+                                                                                    {utilizationSymbol}
+                                                                                    {utilizationSymbol === '$' ? makeComma(row.utilizationVar, 2) : makeComma(row.utilizationVar, 1)}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "utilizationChange"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.utilizationChange !== "0") &&
+                                                                                <>
+                                                                                    {rowss.utilizationChange}%
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell align="right">
+                                                                            {row.utilizationTag && (
+                                                                                <div className="utilizationTag">
+                                                                                    {row.utilizationTag}
+                                                                                </div>
+                                                                            )}
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "unitcostPrior"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.unitcostPrior !== "0") &&
+                                                                                <>
+                                                                                    {unitcostSymbolDollar}
+                                                                                    {unitcostSymbolDollar
+                                                                                        ? makeComma(rowss.unitcostPrior, '')
+                                                                                        : rowss.unitcostPrior}
+                                                                                    {unitcostSymbolPercentage}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "unitcostCurrent"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {(rowss.unitcostCurrent !== "0") &&
+                                                                                <>
+                                                                                    {unitcostSymbolDollar}
+                                                                                    {unitcostSymbolDollar
+                                                                                        ? makeComma(rowss.unitcostCurrent, '')
+                                                                                        : rowss.unitcostCurrent}
+                                                                                    {unitcostSymbolPercentage}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "unitcostVar"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        >
+                                                                            {((rowss.unitcostVar !== "0") || (rowss.unitcostPrior !== "0") || (rowss.unitcostCurrent !== "0")) &&
+                                                                                <>
+                                                                                    {unitcostSymbolDollar}
+                                                                                    {unitcostSymbolDollar
+                                                                                        ? makeComma(rowss.unitcostVar, '')
+                                                                                        : rowss.unitcostVar}
+                                                                                    {unitcostSymbolPercentage}
+                                                                                </>
+                                                                            }
+                                                                        </TableCell>
+                                                                        <TableCell
+                                                                            align="right"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    orderBy === "unitcostChange"
+                                                                                        ? setBackground(
+                                                                                            childRows,
+                                                                                            order === "asc",
+                                                                                            i + 1
+                                                                                        )
+                                                                                        : "#fff"
+                                                                            }}
+                                                                        > {(rowss.unitcostChange !== "0") &&
+                                                                            <>
+                                                                                {rowss.unitcostChange}%
+                                                                            </>
+                                                                            }
+                                                                        </TableCell>
+                                                                    </TableRow>
+
+                                                                ))}
+                                                            </>
+                                                        )
+                                                    }
+                                                >
+
+                                                    <TableCell
+                                                        style={{ position: "sticky", left: "36px", backgroundColor: "white" }}
+                                                        component="th"
+                                                        id={labelId}
+                                                        scope="row"
+                                                        padding="none"
+                                                        className="name"
+                                                    >
+                                                        {row.name}
+                                                    </TableCell>
+                                                    <TableCell
+                                                    >
+                                                        {(inNetwork && row.inNet) && (
+                                                            <div
+                                                                className={
+                                                                    (row.inNet === "0.00" || row.inNet === "0")
+                                                                        ? "inNetworkNotActive"
+                                                                        : "inNetworkActive"
+                                                                }
+                                                            >
+                                                                {row.inNet}%
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    {
+                                                        col &&
+                                                        <>
+                                                            <TableCell
+                                                                align="right"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        orderBy === "mbrPrior" ? "#e1edff" : "#fff"
+                                                                }}
+                                                            >
+                                                                {(row.mbrPrior !== "0") &&
+                                                                    <>
+                                                                        {makeComma(row.mbrPrior, '')}
+                                                                    </>
+                                                                }
+                                                            </TableCell>
+                                                            <TableCell
+                                                                align="right"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        orderBy === "mbrCurrent" ? "#e1edff" : "#fff"
+                                                                }}
+                                                            >
+                                                                {(row.mbrCurrent !== "0") &&
+                                                                    <>
+                                                                        {makeComma(row.mbrCurrent, '')}
+                                                                    </>
+                                                                }
+                                                            </TableCell>
+                                                            <TableCell
+                                                                align="right"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        orderBy === "mbrVar" ? "#e1edff" : "#fff"
+                                                                }}
+                                                            >
+                                                                {(row.mbrVar !== "0") &&
+                                                                    <>
+                                                                        {makeComma(row.mbrVar, '')}
+                                                                    </>
+                                                                }
+                                                            </TableCell>
+                                                            <TableCell
+                                                                align="right"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        orderBy === "mbrChange" ? "#e1edff" : "#fff"
+                                                                }}
+                                                            >
+                                                                {(row.mbrChange !== "0") &&
+                                                                    <>
+                                                                        {row.mbrChange}%
+                                                                    </>
+                                                                }
+                                                            </TableCell>
+                                                            <TableCell
+                                                                align="right"
+                                                            ></TableCell>
+                                                        </>
+                                                    }
+
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "pmpmPrior" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.pmpmPrior !== "0") &&
+                                                            <>
+                                                                ${makeComma(row.pmpmPrior, 2)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "pmpmCurrent" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.pmpmCurrent !== "0") &&
+                                                            <>
+                                                                ${makeComma(row.pmpmCurrent, 2)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "pmpmVar" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.pmpmVar !== "0") &&
+                                                            <>
+                                                                ${makeComma(row.pmpmVar, 2)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "pmpmChange" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.pmpmChange !== "0") &&
+                                                            <>
+                                                                {row.pmpmChange}%
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                    ></TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "utilizationPrior" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {((row.utilizationPrior !== "0") && ((row.utilizationPrior !== "0.0") && (row.utilizationCurrent !== "0.0") && (row.utilizationVar !== "0.0"))) &&
+                                                            <>
+                                                                {utilizationSymbol}
+                                                                {utilizationSymbol === '$' ? makeComma(row.utilizationPrior, 2) : makeComma(row.utilizationPrior, 1)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "utilizationCurrent"
+                                                                    ? "#e1edff"
+                                                                    : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.utilizationCurrent !== "0") &&
+                                                            <>
+                                                                {utilizationSymbol}
+                                                                {utilizationSymbol === "$" ? makeComma(row.utilizationCurrent, 2) : makeComma(row.utilizationCurrent, 1)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "utilizationVar" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.utilizationVar !== "0") &&
+                                                            <>
+                                                                {utilizationSymbol}
+                                                                {utilizationSymbol === '$' ? makeComma(row.utilizationVar, 2) : makeComma(row.utilizationVar, 1)}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "utilizationChange" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.utilizationChange !== "0") &&
+                                                            <>
+                                                                {row.utilizationChange}%
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                    >
+                                                        {row.utilizationTag && (
+                                                            <div className="utilizationTag">
+                                                                {row.utilizationTag}
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "unitcostPrior" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.unitcostPrior !== "0") &&
+                                                            <>
+                                                                {unitcostSymbolDollar}
+                                                                {unitcostSymbolDollar
+                                                                    ? makeComma(row.unitcostPrior, '')
+                                                                    : row.unitcostPrior}
+                                                                {unitcostSymbolPercentage}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "unitcostCurrent" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.unitcostCurrent !== "0") &&
+                                                            <>
+                                                                {unitcostSymbolDollar}
+                                                                {unitcostSymbolDollar
+                                                                    ? makeComma(row.unitcostCurrent, '')
+                                                                    : row.unitcostCurrent}
+                                                                {unitcostSymbolPercentage}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "unitcostVar" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {((row.unitcostVar !== "0") || (row.unitcostCurrent !== "0") || (row.unitcostPrior !== "0")) &&
+                                                            <>
+                                                                {unitcostSymbolDollar}
+                                                                {unitcostSymbolDollar
+                                                                    ? makeComma(row.unitcostVar, '')
+                                                                    : row.unitcostVar}
+                                                                {unitcostSymbolPercentage}
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell
+                                                        align="right"
+                                                        style={{
+                                                            backgroundColor:
+                                                                orderBy === "unitcostChange" ? "#e1edff" : "#fff"
+                                                        }}
+                                                    >
+                                                        {(row.unitcostChange !== "0") &&
+                                                            <>
+                                                                {row.unitcostChange}%
+                                                            </>
+                                                        }
+                                                    </TableCell>
+                                                </ExpandableTableRow>
+                                            );
+                                        })}
+                                </>
+                            }
+                            {emptyRows > 0 && (
+                                <TableRow
+                                    style={{
+                                        height: (dense ? 33 : 53) * emptyRows
+                                    }}
+                                >
+                                    <TableCell colSpan={6} />
+                                </TableRow>
+                            )}
+                            {loading && (
+                                <TableRow
+                                    style={{
+                                        bottom: "100px",
+                                        left: "50%",
+                                        margin: "auto",
+                                        textAlign: "center"
+                                    }}
+                                >
+                                    <TableCell
+                                        colSpan={17}
+                                        style={{
+                                            textAlign: "center"
+                                        }}
+                                    >
+                                        <Spinner />
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
+        </Box>
+    );
+}

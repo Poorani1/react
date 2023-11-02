@@ -1,0 +1,16 @@
+Test2-   http://bddvts2e15v.wellpoint.com/                                                        pooraniadmin@anthem.com     
+Test3-   http://va10tlvmsq304.wellpoint.com/                                                    poorani.sampath@anthem.com  / pooraniadmin1@anthem.com
+Prod3- http://va10plvmsq301.wellpoint.com/                                                    poorani.sampathadmin@anthem.com
+
+Solar url: https://bddvts3r13w5.wellpoint.com:8985/solr/#/mcheck/query
+
+collabedit.com/h77xd
+
+ mysql -u root -p -h 30.231.192.142 -Dsyndata2008_2010
+Test3Hilabs@CDA123
+
+use syndata2008_2010
+
+http://10.20.0.96/#/dashboard/executivedashboard  - the demo envt URL
+
+cda.demo@hilabs.com  - password - Cda@123

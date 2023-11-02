@@ -1,0 +1,8 @@
+Questions:
+
+1. If we switch from overview to claims by site of care should the dropdown values sustain or default selection should load?
+	Should we use all the dropdowns in overview page to other pages? or some dropdowns should be removed as needed. If so can we list down the dropdowns per page?
+2. Instaed of Load more button can we use Pagination?
+	If going to use Load more then after clicking load more how to come to previous view ex: show less button should be there?
+3. sorted column color: colour grading should be there or can we use same color for the whole column?
+4. Export table button should we keep it or remove?
